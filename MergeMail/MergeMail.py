@@ -1,4 +1,4 @@
-import docx, csv, os.path, bz2
+import docx, csv, os.path
 import pandas as pd
 
 # TODO ecept for "EMAIL" & "ATTACHMENT" we want to create variable <<SWAP>> words dynamically

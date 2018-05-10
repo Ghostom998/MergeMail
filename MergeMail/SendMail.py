@@ -1,11 +1,11 @@
-import smtplib, bz2
+import smtplib
 import os.path
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import COMMASPACE, formatdate
 
-
+""" 
 def send_mail(send_from, send_to, subject, text, file=None, server="127.0.0.1", port=1025):
     
     # send_to must be a list
@@ -33,7 +33,7 @@ def send_mail(send_from, send_to, subject, text, file=None, server="127.0.0.1", 
     smtp.sendmail(send_from, send_to_list, msg.as_string())
     smtp.close()
 
-
+ """
 from email.mime.base import MIMEBase
 from email import encoders
 
@@ -50,7 +50,7 @@ def send_gmail(send_from, Password, send_to, subject, body, file=None, server='s
     msg.attach(MIMEText(body, 'plain'))
     
     filename = os.path.split(file)[1]
-    dirname = os.path.dirname(file)
+    #dirname = os.path.dirname(file)
     attachment = open(file, "rb")
     
     part = MIMEBase('application', 'octet-stream')
@@ -70,3 +70,6 @@ def send_gmail(send_from, Password, send_to, subject, body, file=None, server='s
         print("Message sent successfully to:  " + send_to)
     except:
         print("Error sending message to:  " + send_to)
+
+
+
