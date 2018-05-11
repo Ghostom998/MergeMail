@@ -60,7 +60,7 @@ class GUI:
         self.run_button.grid(row=2,column=2,columnspan=2)
 
         # Message Box
-        self.text = Text(master,wrap=WORD) # height=5,width=40
+        self.text = Text(master,wrap=WORD)
         self.text.grid(row=3,column=0,columnspan=4,rowspan=3)
 
     def browse_button_docx(self):
