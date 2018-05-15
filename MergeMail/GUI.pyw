@@ -6,16 +6,17 @@ except ImportError:
     # for Python3
     from tkinter import *
     from tkinter import filedialog
-import smtplib
-import os.path
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 from email.utils import COMMASPACE, formatdate
-from MergeMail import getText, getValues, BuildText
-import os.path
+import docx, csv, os.path, smtplib
+import pandas as pd
+class ConnectionError(Exception): pass
+class AuthError(Exception): pass
+class SendError(Exception): pass
 
 class GUI:
     def __init__(self, master):
@@ -66,22 +67,22 @@ class GUI:
     def browse_button_docx(self):
         filename = filedialog.askopenfile(parent=self.master,mode='rb',title='Choose the word document')
         self.DocName = filename.name
-        self.text.insert(END,"Successfully loaded " + os.path.split(self.DocName)[1] + "\n")
+        self.Message("Successfully loaded " + os.path.split(self.DocName)[1])
     
     def browse_button_csv(self):
         filename = filedialog.askopenfile(parent=self.master,mode='rb',title='Choose the csv document')
         self.CsvName = filename.name
-        self.text.insert(END,"Successfully loaded " + os.path.split(self.CsvName)[1] + "\n")
+        self.Message("Successfully loaded " + os.path.split(self.CsvName)[1])
     
     def button_run(self):
         try:
-            NewText = getText(os.path.abspath(self.DocName))
-            df = getValues(os.path.abspath(self.CsvName))
+            NewText = self.getText(os.path.abspath(self.DocName))
+            df = self.getValues(os.path.abspath(self.CsvName))
             myemail = self.UserField.get()
             pwd = self.PassField.get()
             subject = self.SubjField.get()
         except Exception as e:
-            self.text.insert(END,e)
+            self.Message(str(e))
         
         for index, row in df.iterrows():
             self.send_guimail(
@@ -89,7 +90,7 @@ class GUI:
             Password=pwd,
             send_to=row['EMAIL'], #dyn
             subject=subject,
-            body=BuildText(NewText, row.to_dict()), #dyn
+            body=self.BuildText(NewText, row.to_dict()), #dyn
             file=row['ATTACHMENT'] #dyn
             )
     
@@ -107,7 +108,14 @@ class GUI:
         
         filename = os.path.split(file)[1]
         #dirname = os.path.dirname(file)
-        attachment = open(file, "rb")
+        try:
+            attachment = open(file, "rb")
+        except FileNotFoundError as f:
+            self.Message(f)
+            self.Message("Attachment not found. Please check that the file exists or has been typed correctly.")
+        except Exception as e:
+            self.Message(str(e))
+            self.Message("Something unexpected happened. Please report the error to our GitHub Page.")
         
         part = MIMEBase('application', 'octet-stream')
         part.set_payload((attachment).read())
@@ -115,20 +123,62 @@ class GUI:
         part.add_header('Content-Disposition', "attachment; filename= %s" % filename)
         
         msg.attach(part)
+        text = msg.as_string()
+
+        sender = Mailer(server, port, send_from, Password) # the except SocketError/AuthError could go here
+        
         try:
-            server = smtplib.SMTP(server, port)
-            server.ehlo()
-            server.starttls()
-            server.login(send_from, Password)
-            text = msg.as_string()
-            server.sendmail(send_from, send_to, text)
-            server.quit()
-            self.text.insert(END,"Message sent successfully to:  " + send_to + "\n")
-        except:
-            self.text.insert(END,"Error sending message to:  " + send_to + "\n")
+            sender.message(send_to, text)
+        except SocketError:
+            self.Message("Couldn't connect to server")
+        except AuthError:
+            self.Message("Invalid username and/or password!")
+        else:
+            self.Message("Message sent!")
+
+    def getText(self, filename):
+        doc = docx.Document(filename)
+        fullText = []
+        for para in doc.paragraphs:
+            fullText.append(para.text)
+        return '\n'.join(fullText)
+
+    def getValues(self, filename):
+        return pd.read_csv(filename)
+
+    # Method build new text based on previous
+    def BuildText(self, Text, dic):
+        for key, item in dic.items():
+            Text = Text.replace("<<" + key + ">>", item)
+        return Text
+    
+    def Message(self, text, pos=END):
+        self.text.insert(pos, text + "\n")
 
 
-def run_gui():
-    root = Tk()
-    gui = GUI(root)
-    root.mainloop()
+class Mailer:
+    def __init__(self, host, port, username, password):
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+
+    def connect(self):
+        try:
+            self.server = smtplib.SMTP(self.host, self.port)
+        except smtplib.socket.gaierror:
+            raise ConnectionError("Error connecting to %s" % (self.host))
+
+    def auth(self):
+        try:
+            self.server.login(self.username, self.password)
+        except SMTPAuthenticationError:
+            raise AuthError("Invalid username (%s) and/or password" % (self.username))
+
+    def message(self, to, msg):
+        try:
+            self.server.sendmail(self.username, to, msg)
+        except smtplib.socket.gaierror as errormsg:
+            raise SendError("Couldn't send message: %s" % (errormsg))
+        except smtplib.socket.timeout:
+            raise ConnectionError("Socket error while sending message")
